@@ -1,3 +1,6 @@
+import { RhinoClient } from "../framework/rhino-client";
+import { Operator } from "../logging/log-models";
+
 export class ReportManager {
     // members: state
     private testRun: any;
@@ -25,7 +28,7 @@ export class ReportManager {
         // [ ] TODO: get failed test cases - by quality (lower to higher)
 
         // build
-        let testCases = [];
+        let testCases: string[] = [];
         for (const testCase of this.testRun.testCases) {
             testCases.push(this.getSummaryTestCase(testCase));
         }
@@ -305,7 +308,7 @@ export class ReportManager {
         }
 
         // build
-        let steps = [];
+        let steps: string[] = [];
         for (let i = 0; i < testCase.steps.length; i++) {
             steps.push(this.getTestStepsHtml(testCase.steps[i], (i + 1).toString()));
         }
@@ -381,11 +384,25 @@ export class ReportManager {
         let actionSign = testStep.actual === true ? 'P' : 'F';
 
         // get expected results
-        let assertions = [];
+        let client: RhinoClient = new RhinoClient("http://localhost:9900/");
+        let assertionTypes: Operator[]=[];
+        client.getOperatorsAsync().then((result)=>{
+            if(typeof result==='string'){
+                assertionTypes=JSON.parse(result);
+            }
+        });
+        let assertions: string[] = [];
         for (const result of testStep.expectedResults) {
             let assertion = result;
-            let assertionColor = assertion.actual === true ? '#000000' : '#e74c3c';
-            let assertionHtml = `<pre style="color: ${assertionColor}">${assertion.expectedResult}</pre>`;
+            let assertionColor = '#000000';
+            let [expected, actual]: [string, string] = ['', ''];
+            if (assertion.actual === false) {
+                assertionColor = '#e74c3c';
+                let assert:string=this.findAssertType(assertion.expectedResult,assertionTypes);
+                [expected, actual] = this.getAssertionValues(assertion.expectedResult, assertion.reasonPhrase, assert);
+            }
+            // let assertionColor = assertion.actual === true ? '#000000' : '#e74c3c';
+            let assertionHtml: string = this.getAssertionsHtml(assertion, expected, actual, assertionColor);
             assertions.push(assertionHtml);
         }
         let assertionsHtml = assertions.join('<br />');
@@ -399,4 +416,67 @@ export class ReportManager {
             <td style="width: 10%; vertical-align: top;"><pre style="color: #3498db">${testStep.runTime.substr(0, 11)}</pre></td>
         </tr>`;
     }
+
+    private getAssertionValues(expectedResult: unknown, reasonPhrase: unknown, assert:string) {
+        let expected: string = "not found";
+        let actual: string = "not found";
+        if (typeof expectedResult === 'string') {
+            let findExpected = expectedResult.match(new RegExp(`(?<=${assert}.*{).*(?=\})`));
+            if (findExpected !== null) {
+                expected = assert + ':' + findExpected[0];
+            }
+        }
+        if (typeof reasonPhrase === 'string') {
+            let findActual = reasonPhrase.match(new RegExp("(?<=Actual: ).*(?=)"));
+            if (findActual !== null) {
+                actual = findActual[0];
+            }
+        }
+        return [expected, actual];
+    }
+
+    private getAssertionsHtml(assertion: any, expected: string, actual: string, assertionColor: string): string {
+        let assertionHtml: string;
+        if (assertion.actual === false) {
+            assertionHtml = `<pre style="color: ${assertionColor}">${assertion.expectedResult}
+                                <br />expected:"${expected}"
+                                <br />actual:"${actual}"                                
+                                </pre>`;
+        }
+        else {
+            assertionHtml = `<pre style="color: ${assertionColor}">${assertion.expectedResult}</pre>`;
+        }
+        return assertionHtml;
+    }
+
+    private findAssertType(expectedResult: unknown, assertionTypes: Operator[]): string {
+        // let assertionTypes = ["match", "equal"];
+        let assertType = "any";
+        if (typeof expectedResult === 'string') {
+            for (let assert of assertionTypes) {
+                if (expectedResult.indexOf(assert.literal) !== -1) {
+                    assertType = assert.literal;
+                }
+            }
+        }
+        return assertType;
+    }
+
+    // private async findAssertType(expectedResult: string): Promise<string | undefined> {
+    //     // let assertionTypes = ["match", "equal"];
+    //     let client: RhinoClient = new RhinoClient("http://localhost:9900/");
+    //     let assertionTypes: Operator[];
+    //     let assertType = "any";
+    //     return await client.getOperatorsAsync().then((result) => {
+    //         if (typeof result === 'string') {
+    //             assertionTypes = JSON.parse(result);
+    //             for (let assert of assertionTypes) {
+    //                 if (expectedResult.indexOf(assert.literal) !== -1) {
+    //                     assertType = assert.literal;
+    //                 }
+    //             }
+    //             return assertType;
+    //         }
+    //     });
+    // }
 }

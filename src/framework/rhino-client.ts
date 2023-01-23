@@ -198,6 +198,20 @@ export class RhinoClient {
     }
 
     /**
+     * Summary. Returns a collection of available assertions.
+     * 
+     * @param callback An argument, which is then invoked inside the outer function to complete some kind of routine or action.
+     */
+    public async getOperatorsAsync() {
+        // setup
+        let httpCommand = new HttpCommand();
+        httpCommand.command = '/api/v3/meta/operators';
+
+        // get
+        return await this.httpClient.invokeAsyncWebRequest(httpCommand);
+    }
+
+    /**
      * Summary. Returns a list of available Plugins (both Rhino and Code).
      * 
      * @param callback An argument, which is then invoked inside the outer function to complete some kind of routine or action.

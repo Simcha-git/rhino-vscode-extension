@@ -56,3 +56,14 @@ export interface RhinoLogMessage extends LogMessage {
     machineName: string;
     exception?: string;
 }
+
+export interface Entity {
+    examples: any[];
+}
+
+export interface Operator {
+    key: string;
+    literal: string;
+    verb: string;
+    entity: Entity;
+}
