@@ -1,3 +1,4 @@
+import { Utilities } from "../extensions/utilities";
 import { RhinoClient } from "../framework/rhino-client";
 import { Operator } from "../logging/log-models";
 
@@ -384,25 +385,11 @@ export class ReportManager {
         let actionSign = testStep.actual === true ? 'P' : 'F';
 
         // get expected results
-        let client: RhinoClient = new RhinoClient("http://localhost:9900/");
-        let assertionTypes: Operator[]=[];
-        client.getOperatorsAsync().then((result)=>{
-            if(typeof result==='string'){
-                assertionTypes=JSON.parse(result);
-            }
-        });
         let assertions: string[] = [];
         for (const result of testStep.expectedResults) {
             let assertion = result;
-            let assertionColor = '#000000';
-            let [expected, actual]: [string, string] = ['', ''];
-            if (assertion.actual === false) {
-                assertionColor = '#e74c3c';
-                let assert:string=this.findAssertType(assertion.expectedResult,assertionTypes);
-                [expected, actual] = this.getAssertionValues(assertion.expectedResult, assertion.reasonPhrase, assert);
-            }
             // let assertionColor = assertion.actual === true ? '#000000' : '#e74c3c';
-            let assertionHtml: string = this.getAssertionsHtml(assertion, expected, actual, assertionColor);
+            let assertionHtml: string = this.buildAssertionsHtml(assertion);
             assertions.push(assertionHtml);
         }
         let assertionsHtml = assertions.join('<br />');
@@ -420,24 +407,39 @@ export class ReportManager {
     private getAssertionValues(expectedResult: unknown, reasonPhrase: unknown, assert:string) {
         let expected: string = "not found";
         let actual: string = "not found";
+        var ddd:string[] = [];
+        if (ddd){
+            console.log("jjj");
+        }            
         if (typeof expectedResult === 'string') {
             let findExpected = expectedResult.match(new RegExp(`(?<=${assert}.*{).*(?=\})`));
-            if (findExpected !== null) {
+            if (findExpected) {
                 expected = assert + ':' + findExpected[0];
             }
         }
         if (typeof reasonPhrase === 'string') {
             let findActual = reasonPhrase.match(new RegExp("(?<=Actual: ).*(?=)"));
-            if (findActual !== null) {
+            if (findActual) {
                 actual = findActual[0];
             }
         }
         return [expected, actual];
     }
 
-    private getAssertionsHtml(assertion: any, expected: string, actual: string, assertionColor: string): string {
+    private buildAssertionsHtml(assertion: any): string {
         let assertionHtml: string;
+        let [expected, actual]:[string,string]=['',''];
+        let assertionColor = '#000000';
         if (assertion.actual === false) {
+            assertionColor = '#e74c3c';
+            let assertTypeLiteral=this.findAssertType(assertion.expectedResult);
+            if (assertTypeLiteral === 'string'){
+                [expected, actual] = this.getAssertionValues(assertion.expectedResult, assertion.reasonPhrase, assertTypeLiteral);
+            }
+            else{
+                console.log("fff"); 
+            }
+                           
             assertionHtml = `<pre style="color: ${assertionColor}">${assertion.expectedResult}
                                 <br />expected:"${expected}"
                                 <br />actual:"${actual}"                                
@@ -449,17 +451,24 @@ export class ReportManager {
         return assertionHtml;
     }
 
-    private findAssertType(expectedResult: unknown, assertionTypes: Operator[]): string {
+    private findAssertType(expectedResult: unknown): string | undefined {
         // let assertionTypes = ["match", "equal"];
-        let assertType = "any";
+        let assertionTypes: Operator[]=[];
+        // let client: RhinoClient = new RhinoClient("http://localhost:9900/");
+        let client = new RhinoClient(Utilities.getRhinoEndpoint());
+        let assertionTypesPromise = client.getOperatorsAsync();
+        Promise.all([assertionTypesPromise]).then((result)=>{
+            if(typeof result==='string'){
+                assertionTypes=JSON.parse(result);
+            }
+        });
         if (typeof expectedResult === 'string') {
             for (let assert of assertionTypes) {
                 if (expectedResult.indexOf(assert.literal) !== -1) {
-                    assertType = assert.literal;
+                    return assert.literal;
                 }
             }
         }
-        return assertType;
     }
 
     // private async findAssertType(expectedResult: string): Promise<string | undefined> {
